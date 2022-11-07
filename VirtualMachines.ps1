@@ -1,19 +1,4 @@
-﻿
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# https://app.pluralsight.com/course-player?clipId=742dbe9b-3746-45a8-8803-d42f288c6835
+﻿# https://app.pluralsight.com/course-player?clipId=742dbe9b-3746-45a8-8803-d42f288c6835
 
 $rg = "resource-group"
 $vmName = "resource-group"
