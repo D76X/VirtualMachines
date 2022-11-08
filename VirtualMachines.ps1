@@ -17,11 +17,19 @@ $subName = "subscriptionName"
 Get-ChildItem "Azure:/${subName}/VirtualMachines"
 Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}"
 
+# The following commands 
+# 1-make use of the | pipe operator.
+# 2-make use of teh -AsJob switch that instruct PS to execute the command as a non-blocking background Job 
+
+# Start & Deprovision a VM
+Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Start-AzVM -AsJob
+# or
+Start-AzVM -ResourceGroupName $rg -Name $vmName -AsJob
+
 # CS stop a VM without deprovisioning it and do it on a PS job os that 
-# the shell doe snot block at the call site
-# Notice that the | pipe operator is used
+# If you do not deprovision a VM then it will incur charges!
 Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Stop-AzVM -StayProvisioned -Force -AsJob
 
 # Stop & Deprovision a VM
-# If you do not deprovision a VM then it will incur charges!
-Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Stop-AzVM -StayProvisioned -Force -AsJob
+# Simply omit the switch -StayProvisioned to stop & deallocate the VM
+Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Stop-AzVM -Force -AsJob
