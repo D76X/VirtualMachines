@@ -33,3 +33,7 @@ Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Stop-AzVM -StayPro
 # Stop & Deprovision a VM
 # Simply omit the switch -StayProvisioned to stop & deallocate the VM
 Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Stop-AzVM -Force -AsJob
+
+# Remove a VM - this stops, deallocates and remove the VM from the subscription
+Remove-AzVM -ResourceGroupName $rg -Name $vmName -AsJob
+Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Remove-AzVM -Force -AsJob
