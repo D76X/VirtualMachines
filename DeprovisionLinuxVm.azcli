@@ -1,0 +1,60 @@
+﻿# Example - Deprovision (Generalize a Linux VM)
+# The following illustrate the steps in the CLI
+# https://app.pluralsight.com/course-player?clipId=52deef20-f17c-49b9-a035-162eb7a06589
+#
+# Choose the right Azure command-line tool
+# https://learn.microsoft.com/en-us/cli/azure/choose-the-right-azure-command-line-tool#different-shell-environments
+
+# --------------------------------------------------------------------------------------------------
+
+# Sign in with Azure CLI
+# https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli
+
+# interactive flow
+az login
+# The pproach doesn't work with Microsoft accounts or accounts that have two-factor authentication enabled
+az login -u <username> -p <password>
+
+# --------------------------------------------------------------------------------------------------
+
+# How to manage Azure subscriptions with the Azure CLI
+# https://learn.microsoft.com/en-us/cli/azure/manage-azure-subscriptions-azure-cli#change-the-active-subscription
+# The Azure CLI supports selecting a subscription both globally and per command.
+# Azure CLI commands no longer default the subscription ID to your current, active subscription to improve security.
+# You must now specify the subscription to work in by using the --subscription or --scope parameter in your command.
+
+# the following retrive the info about the subscritptions available to the logged in user
+# append switch --output table for table output instead of json
+
+az account tenant list
+az account tenant list --output table
+az account show
+
+# the TenantId of this command 
+az account show --output table
+
+# get the current default subscription using list
+az account list --query "[?isDefault]"
+
+# store the default subscription  in a variable
+subscriptionId="$(az account list --query "[?isDefault].id" -o tsv)"
+echo $subscriptionId
+
+# --------------------------------------------------------------------------------------------------
+
+# Common Azure CLI commands
+# https://learn.microsoft.com/en-us/cli/azure/get-started-with-azure-cli#common-azure-cli-commands
+
+# Azure CLI az vm commands
+# https://learn.microsoft.com/en-us/cli/azure/vm?view=azure-cli-latest
+
+# The basic of variables in Azure CLI (must use Bash Shell!)
+vmName=vmNameValue
+echo $vmName
+rg=my-rg
+echo $rg
+
+az vm list-ip-addresses --resource-group rg --name vmName
+ipAddresses = (az vm list-ip-addresses --resource-group rg --name vmName)
+
+# --------------------------------------------------------------------------------------------------

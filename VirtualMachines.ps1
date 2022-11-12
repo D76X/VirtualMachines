@@ -1,7 +1,7 @@
 ﻿# https://app.pluralsight.com/course-player?clipId=742dbe9b-3746-45a8-8803-d42f288c6835
 
 $rg = "resource-group"
-$vmName = "resource-group"
+$vmName = "vm-name"
 
 # get the properties of a VM
 Get-AzVM -ResourceGroupName $rg -Name $vmName
@@ -44,7 +44,9 @@ Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Remove-AzVM -Force
 # the /shutdown switch causes the OS to hutdown BUT it does not shutdown and/or deallocate the VM in Azure
 # this must be done manually!
 # https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/sysprep--generalize--a-windows-installation?view=windows-11
+# -----------------------------------------
 # sysprep.exe /generalize /shutdown /oobe
+# -----------------------------------------
 
 # The process of Generilization of a Linux VM is labeled Deprovisioning
 # The tools used to Deprovision a Linux Machine in Azure is the Azure Linux Agent [waagent]
@@ -54,5 +56,6 @@ Get-ChildItem "Azure:/${subName}/VirtualMachines/${vmName}" | Remove-AzVM -Force
 # from a distribution package or from GitHub
 # The same as before applies in regard to shutting down and deallocating the VM in Azure as waagent shutdowns
 # only the OS
+# -----------------------------------------
 # sudo waagent -deprovision+user -force
-
+# -----------------------------------------
