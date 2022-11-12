@@ -27,10 +27,19 @@ az login -u <username> -p <password>
 # append switch --output table for table output instead of json
 
 az account tenant list
+# this prodeces the subscriptiionIds of the ADD Tenant the bash user is logged in
+# However, it does not show the name of the corresponding subscriptions
 az account tenant list --output table
+
+# the query switch together with the -o tvs can be used to display id-name pairs
+# subscriptionId-Name
+az account list --query "[].id" -o tsv
+az account list --query "[]. [id,name]" -o tsv
+
 az account show
 
-# the TenantId of this command 
+
+# the TenantId of this command is the subscriptionId that is used as a default
 az account show --output table
 
 # get the current default subscription using list
@@ -39,6 +48,17 @@ az account list --query "[?isDefault]"
 # store the default subscription  in a variable
 subscriptionId="$(az account list --query "[?isDefault].id" -o tsv)"
 echo $subscriptionId
+
+# --------------------------------------------------------------------------------------------------
+
+# Change the active subscription
+# https://learn.microsoft.com/en-us/cli/azure/manage-azure-subscriptions-azure-cli#change-the-active-subscription
+az account set --subscription "My Demos"
+az account set --subscription "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# change the active subscription using a variable
+subscriptionId="$(az account list --query "[?isDefault].id" -o tsv)"
+az account set --subscription $subscriptionId
 
 # --------------------------------------------------------------------------------------------------
 
