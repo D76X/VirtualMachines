@@ -5,59 +5,191 @@
 # --------------------------------------------------------------------------------------------------
 
 # Sign in to an AAD Tenant with Azure CLI use either the Bash or the Azure Cloud Shell (Bash) in VS Code
-‡ If you use the Azure Cloud Shell it might need tio be set-up on the first connection
+# If you use the Azure Cloud Shell it might need tio be set-up on the first connection
 # interactive flow
 az login
 
-
-
 # The expected subscriptions names are the following
+SUB_NAME_PROFESSIONAL="Visual Studio Professional with MSDN"
+echo ${SUB_NAME_PROFESSIONAL}
 
-subProfessionalName="Visual Studio Professional with MSDN"
-echo $subProfessionalName
-
-subEnterpriseName="Visual Studio Enterprise – MPN "
-echo $subEnterpriseName
-
-# it is assumed that the default subscription is going to be used
-# store the default subscription id in a variable
-subscriptionId="$(az account list --query "[?isDefault].id" -o tsv)"
-echo $subscriptionId
-
-subscriptionName="$(az account list --query "[?isDefault].name" -o tsv)"
-echo $subscriptionName
+SUB_NAME_ENTERPRISE="Visual Studio Enterprise – MPN"
+echo ${SUB_NAME_ENTERPRISE}
 
 # --------------------------------------------------------------------------------------------------
 
 # Change the active subscription
 # https://learn.microsoft.com/en-us/cli/azure/manage-azure-subscriptions-azure-cli#change-the-active-subscription
 
-# by name
-az account set --subscription "Visual Studio Enterprise – MPN"
+# by name or by id using a literal as argument
 az account set --subscription "Visual Studio Professional with MSDN"
+az account set --subscription "Visual Studio Enterprise – MPN"
 
-# by id
-az account set --subscription "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# you must use the syntax "${VAR_NAME}" as 
+# 1- the ${VAR_NAME} gets the value of the variable VAR_NAME
+# 2- the "VAR_VALUE" turns the value into a literal!
+az account set --subscription "${SUB_NAME_PROFESSIONAL}"
 
-# change the active subscription using a variable
-subscriptionId="$(az account list --query "[?isDefault].id" -o tsv)"
-az account set --subscription $subscriptionId
+# verify
+az account show
+az account show --query "id"
+az account show --query "[id, name]"
+az account show --query "[id, name]" -o tsv
+
 
 # --------------------------------------------------------------------------------------------------
 
-# Common Azure CLI commands
-# https://learn.microsoft.com/en-us/cli/azure/get-started-with-azure-cli#common-azure-cli-commands
+# How to Generalize a VM
+# [Remove machine specific information by generalizing a VM before creating an image](https://learn.microsoft.com/en-us/azure/virtual-machines/generalize)
+# [Understanding and using the Azure Linux Agent](https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/agent-linux)  
+# [How to update the Azure Linux Agent on a VM](https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/update-linux-agent)
+# 
+# 1- any Azure Linux VM from the Microsoft Marketplace includes the waagent
+# 2- for custom Linux VM the waagent may be installed on the target VM
+# 3-after running the -deprovision+user you must manually shutdown and deallocate the VM from the Azure Portal
 
-# Azure CLI az vm commands
-# https://learn.microsoft.com/en-us/cli/azure/vm?view=azure-cli-latest
+# --------------------------------------------
+# sudo waagent -deprovision+user -force
+# --------------------------------------------
 
-# The basic of variables in Azure CLI (must use Bash Shell!)
 vmName=vmNameValue
 echo $vmName
 rg=my-rg
 echo $rg
 
+# Find the IP address of the VM you want to build a custom image from.
 az vm list-ip-addresses --resource-group rg --name vmName
 ipAddresses = (az vm list-ip-addresses --resource-group rg --name vmName)
+
+# -----------------------------------------------------------------------
+# The follwoing sets of commands are run on the Linux VM as part of a
+# SSH session
+# -----------------------------------------------------------------------
+# remote into the VM with ssh
+# this will satrt a ssh session on the bash shell
+ssh demoadmin@x.y.z
+ssh demoadmin@168.61.212.180
+
+# ssh session
+# run the deprovisioning cmd on the ssh session
+sudo waagent -deprovision+user -force
+
+# ssh session
+# log out of the VM
+exit
+# -----------------------------------------------------------------------
+# Here we return to run commands on teh Azure CLI
+# -----------------------------------------------------------------------
+
+# in Azure CLI deallocate the VM
+az vm deallocate --resource-group $rg --name $vmName
+
+# in Azure CLI check the status of the VM and make sure that it is indeed 
+# in status [DEALLOCATED]
+az vm list --show-details --output table
+
+# Mark the VM as Generalized in Azure
+az vm generalize --resource-group $rg --name $vmName
+
+# --------------------------------------------------------------------------------------------------
+# Create a Custom Image
+# https://learn.microsoft.com/en-us/cli/azure/image?view=azure-cli-latest
+# --------------------------------------------------------------------------------------------------
+
+# az image create
+# Create a custom Virtual Machine Image from managed disks or snapshots.
+
+# Create a Custom from a VM that has been DEALLOCATED - by name
+az image create --resource-group $rg --name "ci-linux-demo-1" --source $vmName 
+# the default is zone-resilient=false [LRS] 
+# set it to true if you need ZRS
+--zone-resilient {false, true}
+
+# Create a Custom from a VM that has been DEALLOCATED - by resource ID
+az image create -g MyResourceGroup \
+    -n image1 \
+    --os-type Linux \
+    --source /subscriptions/db5eb68e-73e2-4fa8-b18a-0123456789999/resourceGroups/rg1/providers/Microsoft.Compute/snapshots/s1
+
+# check that the custom image is among the CIs on your Subscription
+az image list \
+    --output table   
+
+# --------------------------------------------------------------------------------------------------
+# Create a VM from a Custom Image
+# https://learn.microsoft.com/en-us/cli/azure/vm?view=azure-cli-latest
+# --------------------------------------------------------------------------------------------------
+
+# EXAMPLE-1
+
+# Quickstart: Create a Linux virtual machine with the Azure CLI
+# https://learn.microsoft.com/en-us/azure/virtual-machines/linux/quick-create-cli?source=docs
+# With the following command a Linux VM with the Debian distribution from the Azure Marketplace
+# is created. 
+# [--authentication-type {all, password, ssh}]
+# Defaults to password for Windows and SSH public key for Linux. "all" enables both ssh and password authentication.
+# The --generate-ssh-keys is important!
+# it is used to automatically generate an SSH key, and put it in the default key location 
+# (~/.ssh). 
+az vm create \
+  --resource-group myResourceGroup \
+  --name myVM \
+  --image Debian \  
+  --admin-username azureuser \
+  --location "westeurope" \
+  --generate-ssh-keys
+
+# --------------------------------------------------------------------------------------------------
+# SSH
+#
+# Generate and store SSH keys in the Azure portal
+# https://learn.microsoft.com/en-us/azure/virtual-machines/ssh-keys-portal
+#
+# How to use SSH keys with Windows on Azure
+# https://learn.microsoft.com/en-us/azure/virtual-machines/linux/ssh-from-windows
+#
+# The following vides illustrate the process of creation and usage of SSH Keys
+
+# Set up VM on Microsoft Azure + SSH Setup
+# https://www.youtube.com/watch?v=gKPuZwgyrwE 
+# Azure VM Server and SSH Login
+# https://www.youtube.com/watch?v=DzeZGUHWTk0
+# How to Create an SSH key and add it to your server
+# https://www.youtube.com/watch?v=Py4Gtp8fj1k
+#
+# In summary, the simplest way to handle the SSH key generation and usage with Azure VMs
+# is described by the following document.
+#
+# Detailed steps: Create and manage SSH keys for authentication to a Linux VM in Azure
+# https://learn.microsoft.com/en-us/azure/virtual-machines/linux/create-ssh-keys-detailed#generate-keys-automatically-during-deployment
+# 
+# The section Generate keys automatically during deployment explains what the advantages are when the
+# command below is used.
+# [az vm create]+[--generate-ssh-keys]
+#
+# The [--generate-ssh-keys] switch presents the following advantages
+# 1- the generation of both public and private SSH key files
+# 2- the keys are stored in the ~/.ssh directory.
+# 3- this command option does not overwrite keys if they already exist in that location, such as with some pre-configured Compute Gallery images.
+#
+# However, if you want to use a SSH key you already have on your system
+# replace [--generate-ssh-keys] with the [--ssh-key-value] and set it to
+# the location of the PUB file that holds the key. This causes [az vm create]
+# to create the Azure VM with this PUB already available to it so that the 
+# any machine that hols the corresponding PK can connect to it over SSH.
+# --------------------------------------------------------------------------------------------------
+
+# EXAMPLE-2
+
+# The following command instead uses the --image switch to create the VM from a named
+# Custom Image that must be available in the Subscription.
+az vm create \
+    --resource-group $rg \     
+    --name "vm1-ci-linux-demo-1" \
+    --image "ci-linux-demo-1" \
+    --admin-username "dsadmin" \
+    --authentication-type "ssh" \ 
+    --location "westeurope" \
+    --ssh-key-value ~/.ssh/id_rsa.pub
 
 # --------------------------------------------------------------------------------------------------
