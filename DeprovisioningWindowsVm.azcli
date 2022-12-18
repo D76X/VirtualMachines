@@ -1,0 +1,136 @@
+﻿# --------------------------------------------------------------------------------------------------
+# Remove machine specific information by generalizing a VM before creating an image
+# https://learn.microsoft.com/en-us/azure/virtual-machines/generalize
+#
+# This document illustrate the procedure for 
+# Linux   [Generic, CentOS, Debian, Ubuntu..]
+# Windows
+#
+# There are basically 4 steps to this procedure
+#
+# STEP-1
+# RUN A TOOL ON THE VM TO DEPROVISION/GENERALIZE it. 
+# This step removes the user specific information
+#
+# STEP-2
+# DEALLOCATE THE VM 
+# This is more than just stopping it by shutting it down i.e. a deallocated VM CANNOT be restarted.
+#
+# STEP-3
+# GENERALIZE
+# This mark the VMas GENERALIZED in Azure 
+#
+# STEP-4
+# CREATE A CUSTOM IMAGE from the deallocvated VM
+# --------------------------------------------------------------------------------------------------
+
+# The expected subscriptions names are the following
+SUB_NAME_PROFESSIONAL="Visual Studio Professional with MSDN"
+echo ${SUB_NAME_PROFESSIONAL}
+
+SUB_NAME_ENTERPRISE="Visual Studio Enterprise – MPN"
+echo ${SUB_NAME_ENTERPRISE}
+az login
+az account set --subscription "${SUB_NAME_PROFESSIONAL}"
+az account set --subscription "${SUB_NAME_ENTERPRISE}"
+# --------------------------------------------------------------------------------------------------
+
+#0 RDP into the Azure Windows VM
+#1 Open a Command Prompt window as an administrator.
+#2 Sign in to your Windows VM.
+#3 Delete the panther directory (C:\Windows\Panther).
+#4 Then change the directory to %windir%\system32\sysprep, and then run sysprep.exe
+#5 The VM will shut down (but NOT DEALLOCATE!) when Sysprep is finished generalizing the VM. 
+#6 Do not restart the VM. 
+
+# --------------------------------------------------------------------------------------------------
+# STEP-1
+# DEPROVISION
+# RUN A TOOL ON THE VM TO DEPROVISION/GENERALIZE it. 
+# --------------------------------------------------------------------------------------------------
+%windir%\system32\sysprep\sysprep.exe /oobe /generalize /mode:vm /shutdown
+
+# in Azure CLI check the status of the VM and make sure that it is indeed 
+# in status [STOPPED]
+az vm list --show-details --output table
+
+# more specifically
+az vm show --resource-group $rg --name $vmName \
+    --show-details \
+    --subscription "${SUB_NAME_PROFESSIONAL}"
+
+# --------------------------------------------------------------------------------------------------
+# STEP-2
+# DEALLOCATION
+# This is more than just stopping it by shutting it down i.e. a deallocated VM CANNOT be restarted.
+# --------------------------------------------------------------------------------------------------
+
+# in Azure CLI deallocate the VM
+az vm deallocate --resource-group $rg --name $vmName
+
+# --------------------------------------------------------------------------------------------------
+# STEP-3
+# GENERALIZATION
+# This mark the VMas GENERALIZED imn Azure
+# --------------------------------------------------------------------------------------------------
+
+az vm generalize --resource-group $rg --name $vmName
+
+# --------------------------------------------------------------------------------------------------
+# STEP-4
+# CREATE A CUSTOM IMAGE from the deallocvated VM
+# https://learn.microsoft.com/en-us/cli/azure/image?view=azure-cli-latest
+# --------------------------------------------------------------------------------------------------
+
+az image create --resource-group $rg --name "ci-windows-demo-1" --source $vmName 
+# the default is zone-resilient=false [LRS] 
+# set it to true if you need ZRS
+--zone-resilient {false, true}
+
+
+# --------------------------------------------------------------------------------------------------
+
+# check that the custom image is among the CIs on your Subscription
+az image list \
+    --output table   
+
+# another way to list all the resources fo one particular type is the following
+az resource list \
+    --resource-type Microsoft.Compute/images \
+    --output table
+
+# --------------------------------------------------------------------------------------------------
+# Create a VM from a Custom Image
+# https://learn.microsoft.com/en-us/cli/azure/vm?view=azure-cli-latest
+#
+# Quickstart: Create a Windows virtual machine with the Azure CLI
+# https://learn.microsoft.com/en-us/azure/virtual-machines/windows/quick-create-cli
+# --------------------------------------------------------------------------------------------------
+
+# This creates a Windows VM from teh custom image
+# it also sets the admin user and if the switch --admin-password a password can be provided
+# otherwise the user will be prompted to create a password that meets the requiremets
+#
+# What are the password requirements when creating a VM?
+# https://learn.microsoft.com/en-us/azure/virtual-machines/windows/faq#what-are-the-password-requirements-when-creating-a-vm-
+
+az vm create \
+    --resource-group $rg \     
+    --name "vm1-ci-windows-demo-1" \
+    --image "ci-windows-demo-1" \
+    --location "westeurope" \
+    --public-ip-sku Standard \
+    --admin-username "dsadmin" \
+    --admin-password "your-password"
+    # --authentication-type "ssh" \    
+    # --ssh-key-value ~/.ssh/id_rsa.pub
+
+# By default, only RDP connections are opened when you create a Windows VM in Azure!
+# This is on port 3389.
+# For example, if the VM is used to run IIS you may want to open port 80 to allow 
+# indound TCP traffic. 
+# [az vm open-port] adds a security rule to the network security group (NSG) that is 
+# attached to the VM's network interface (NIC) or subnet.
+# [--apply-to-subnet] Allow inbound traffic on the subnet instead of the NIC.
+az vm open-port --port 80 --resource-group $rg --name $vmName \
+    --apply-to-subnet

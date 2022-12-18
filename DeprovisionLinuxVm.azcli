@@ -2,6 +2,29 @@
 # The following illustrate the steps in the CLI
 # https://app.pluralsight.com/course-player?clipId=52deef20-f17c-49b9-a035-162eb7a06589
 
+# Remove machine specific information by generalizing a VM before creating an image
+# https://learn.microsoft.com/en-us/azure/virtual-machines/generalize
+#
+# This document illustrate the procedure for 
+# Linux   [Generic, CentOS, Debian, Ubuntu..]
+# Windows
+#
+# There are basically 4 steps to this procedure
+#
+# STEP-1
+# RUN A TOOL ON THE VM TO DEPROVISION/GENERALIZE it. 
+# This step removes the user specific information
+#
+# STEP-2
+# DEALLOCATE THE VM 
+# This is more than just stopping it by shutting it down i.e. a deallocated VM CANNOT be restarted.
+#
+# STEP-3
+# GENERALIZE
+# This mark the VMas GENERALIZED in Azure 
+#
+# STEP-4
+# CREATE A CUSTOM IMAGE from the deallocvated VM
 # --------------------------------------------------------------------------------------------------
 
 # Sign in to an AAD Tenant with Azure CLI use either the Bash or the Azure Cloud Shell (Bash) in VS Code
@@ -70,6 +93,11 @@ ipAddresses = (az vm list-ip-addresses --resource-group rg --name vmName)
 ssh demoadmin@x.y.z
 ssh demoadmin@168.61.212.180
 
+# --------------------------------------------------------------------------------------------------
+# STEP-1
+# DEPROVISION
+# RUN A TOOL ON THE VM TO DEPROVISION/GENERALIZE it. 
+# --------------------------------------------------------------------------------------------------
 # ssh session
 # run the deprovisioning cmd on the ssh session
 sudo waagent -deprovision+user -force
@@ -77,9 +105,16 @@ sudo waagent -deprovision+user -force
 # ssh session
 # log out of the VM
 exit
+
 # -----------------------------------------------------------------------
-# Here we return to run commands on teh Azure CLI
+# Here we return to run commands on the Azure CLI
 # -----------------------------------------------------------------------
+
+# --------------------------------------------------------------------------------------------------
+# STEP-2
+# DEALLOCATION
+# This is more than just stopping it by shutting it down i.e. a deallocated VM CANNOT be restarted.
+# --------------------------------------------------------------------------------------------------
 
 # in Azure CLI deallocate the VM
 az vm deallocate --resource-group $rg --name $vmName
@@ -88,18 +123,24 @@ az vm deallocate --resource-group $rg --name $vmName
 # in status [DEALLOCATED]
 az vm list --show-details --output table
 
-# Mark the VM as Generalized in Azure
+# --------------------------------------------------------------------------------------------------
+# STEP-3
+# GENERALIZATION
+# This mark the VMas GENERALIZED imn Azure
+# --------------------------------------------------------------------------------------------------
+
 az vm generalize --resource-group $rg --name $vmName
 
 # --------------------------------------------------------------------------------------------------
-# Create a Custom Image
+# STEP-4
+# CREATE A CUSTOM IMAGE from the deallocvated VM
 # https://learn.microsoft.com/en-us/cli/azure/image?view=azure-cli-latest
 # --------------------------------------------------------------------------------------------------
 
 # az image create
 # Create a custom Virtual Machine Image from managed disks or snapshots.
-
 # Create a Custom from a VM that has been DEALLOCATED - by name
+
 az image create --resource-group $rg --name "ci-linux-demo-1" --source $vmName 
 # the default is zone-resilient=false [LRS] 
 # set it to true if you need ZRS
@@ -111,9 +152,16 @@ az image create -g MyResourceGroup \
     --os-type Linux \
     --source /subscriptions/db5eb68e-73e2-4fa8-b18a-0123456789999/resourceGroups/rg1/providers/Microsoft.Compute/snapshots/s1
 
+# --------------------------------------------------------------------------------------------------
+
 # check that the custom image is among the CIs on your Subscription
 az image list \
     --output table   
+
+# another way to list all the resources fo one particular type is the following
+az resource list \
+    --resource-type Microsoft.Compute/images \
+    --output table
 
 # --------------------------------------------------------------------------------------------------
 # Create a VM from a Custom Image
@@ -191,5 +239,14 @@ az vm create \
     --authentication-type "ssh" \ 
     --location "westeurope" \
     --ssh-key-value ~/.ssh/id_rsa.pub
+
+# --------------------------------------------------------------------------------------------------
+# Delete the Generalized & Deallocated VM from which the Custom Image was created.
+# Other MSs can be created from the imga therefore the VM from which the image was created is no 
+# longer required. Furthermore, any generalized and deallocated VM cannot be started and it will
+# case an error on [az vm start..]
+# --------------------------------------------------------------------------------------------------
+
+az vm delete --resource-group $rg --name $vmName 
 
 # --------------------------------------------------------------------------------------------------
