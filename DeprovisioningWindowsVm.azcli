@@ -55,7 +55,9 @@ az account set --subscription "${SUB_NAME_ENTERPRISE}"
 az vm list --show-details --output table
 
 # more specifically
-az vm show --resource-group $rg --name $vmName \
+az vm show \
+    --resource-group $rg \
+    --name $vmName \
     --show-details \
     --subscription "${SUB_NAME_PROFESSIONAL}"
 
