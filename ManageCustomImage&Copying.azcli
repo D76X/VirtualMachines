@@ -1,0 +1,38 @@
+﻿# Manage Custom Image
+# Demo: Managing Custom Images & Copying Images between Azure Regions
+# https://app.pluralsight.com/course-player?clipId=14b78b35-ba7c-4b4f-85b3-ba3482cf73ec
+
+# The problem is that it is not possible to create a VM with i.e. [az vm create] from
+# any Custom Image that is located outside of the Azure Region where the VM is to be
+# created. In order to accomplish this it is necessary to make a copy iof the Custom Image
+# local to the target region.
+
+# Azure CLI Image Copy Extension 
+# allows you to copy virtual machine images between regions with just one command.
+# https://techcommunity.microsoft.com/t5/educator-developer-blog/azure-cli-image-copy-extension-8211-allows-you-to-copy-virtual/ba-p/380106
+# --------------------------------------------------------------------------------------------------
+
+az extension add --name image-copy-extension
+
+az image copy --help
+
+# https://learn.microsoft.com/en-us/cli/azure/image?view=azure-cli-latest#az-image-copy
+# the --cleanup remove the temporay resources that are automatically created on azure 
+# to perform the copy process.
+az image copy \
+    --source-resource-group mySources-rg \
+    --source-object-name myImage \
+    --target-location uksouth northeurope \
+    --target-resource-group "images-repo-rg" \
+    --cleanup \
+    --target-name \
+    --target-subscription \
+    --tags
+    # [--source-type {image, vm}]
+
+# check that the copy has been made
+az image list --output table    
+
+az image delete \
+    --resource-group $rg \
+    --name $vmName \
