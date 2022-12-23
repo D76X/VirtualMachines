@@ -1,1 +1,19 @@
-﻿
+﻿# Common Disk SAdministrative Operation
+# https://app.pluralsight.com/course-player?clipId=8bb89ee9-dbc2-4837-a770-6e49b1bcf694
+#------------------------------------------
+# Create/Provision
+# Attach the Disk to a VM
+# Prepare the disk for the OS
+# Take a Snapshot of a VHD
+# Resize a VHD
+# Remove a VHD
+#------------------------------------------
+# Azure Disk Snapshots
+# https://app.pluralsight.com/course-player?clipId=7fc2e10c-c929-44fd-b757-e6aaad17d833
+#
+# Demo : Create, Attach, Prepare, Resize and Use a Azure VHD  
+# + Take a Snapshot of a VHD
+# + Remove a VHD 
+# https://app.pluralsight.com/course-player?clipId=583f189e-38a9-4e2c-8d9f-d0b271ca34e3
+#
+# ===========================================================================================
