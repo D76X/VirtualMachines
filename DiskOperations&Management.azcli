@@ -1,10 +1,10 @@
 ﻿# Common Disk SAdministrative Operation
 # https://app.pluralsight.com/course-player?clipId=8bb89ee9-dbc2-4837-a770-6e49b1bcf694
 #------------------------------------------
-# Create/Provision
-# Attach the Disk to a VM
-# Prepare the disk for the OS
-# Take a Snapshot of a VHD
+# STEP-1 Create/Provision
+# STEP-2 Attach the Disk to a VM in Azure !
+# STEP-3 Prepare the disk for the OS
+# STEP-4 Take a Snapshot of a VHD
 # Resize a VHD
 # Remove a VHD
 #------------------------------------------
@@ -17,3 +17,136 @@
 # https://app.pluralsight.com/course-player?clipId=583f189e-38a9-4e2c-8d9f-d0b271ca34e3
 #
 # ===========================================================================================
+
+# --------------------------------------------------------------------------------------------------
+
+# The expected subscriptions names are the following
+SUB_NAME_PROFESSIONAL="Visual Studio Professional with MSDN"
+echo ${SUB_NAME_PROFESSIONAL}
+
+SUB_NAME_ENTERPRISE="Visual Studio Enterprise – MPN"
+echo ${SUB_NAME_ENTERPRISE}
+az login
+az account set --subscription "${SUB_NAME_PROFESSIONAL}"
+az account set --subscription "${SUB_NAME_ENTERPRISE}"
+# --------------------------------------------------------------------------------------------------
+# STEP-1 Create/Provision
+# STEP-2 Attach the Disk to a VM
+
+diskName="md-stdlrs-128-test1"
+
+# Create & Attach a managed persistent disk to a VM
+# [--sku {PremiumV2_LRS, Premium_LRS, Premium_ZRS, StandardSSD_LRS, StandardSSD_ZRS, Standard_LRS, UltraSSD_LRS}]
+az vm disk attach \
+    --vm-name $vmName \
+    --resource-group $rg \
+    --name $diskName
+    --new  \
+    --size-gb 128 \
+    --sku Standard_LRS 
+
+# --------------------------------------------------------------------------------------------------
+# STEP-3 Prepare the disk for the OS
+
+# Find the IP address of the VM you want to build a custom image from.
+az vm list-ip-addresses --resource-group $rg --name $vmName
+ipAddresses=(az vm list-ip-addresses --resource-group $rg --name $vmName)
+
+# remote into the VM with ssh
+# replace <demoadmin> and <168.61.212.180> with the admin user and the $ipAddresses
+ssh demoadmin@168.61.212.180
+
+# -------------------------------------
+# does this work?
+ssh -l demoadmin 168.61.212.180
+# -------------------------------------
+
+# At this point there a SSH session is established with the Linux VM
+
+# STEP-3A
+# Display block devices (Except ram disk). 
+# https://www.geeksforgeeks.org/lsblk-command-in-linux-with-examples/
+# As everything in Linux Connected Block Devices are managed as files.
+# It queries /sys virtual file system and udev db to obtain information that it displays.
+# It displays output in a tree-like structure.  
+# This command comes pre-installed with the util-Linux package. 
+
+# The purpose of the following commands is at first to be able to discover the name
+# assigned to the block device that we want to attach to the te system.
+
+# --------
+lsblk
+# --------
+# display empty block devices as well.
+# lsblk -a
+# print size information in bytes. 
+# lsblk -b
+# To print zone model for devices.  
+# lsblk -z 
+# --------
+
+# if * lsblk * is not installed on your Linux Distro.
+# Many Linux distributions do not have lsblk command pre-installed. 
+# install it use the following commands as per your Linux distribution. 
+# -----------------------------------------------------------------------
+# Debian/Ubuntu
+# $sudo apt-get install util-linux
+# -----------------------------------------------------------------------
+# CentOS/RedHat + Fedora OS
+# $sudo yum install util-linux-ng
+# -----------------------------------------------------------------------
+
+# --------------------------------------------------------------------------------------------------
+
+# # STEP-3A Alternative
+# https://learn.microsoft.com/en-us/troubleshoot/azure/virtual-machines/chroot-environment-linux
+# dmesg to filter on SCSI disks
+
+# --------------------------------------------------------------------------------------------------
+# STEP-3B
+# Partition the disk with fdisk
+# https://phoenixnap.com/kb/linux-create-partition
+
+# In the following we assume that ** SDC ** is the name assigned to the block device that we want to 
+# attach to the te system.
+sudo fdisk /dev/sdc
+
+# once you are in the FDisk utility the following commands produce the partition.
+# m : fdisk help
+# n : fdisk create a new partition - as this is a new drive that we want ot attach then we must first create a new partition
+# p : stands for Primary ( - e : stand for Extended Partition)
+# 1 : Partition Number - the default is 1 
+# By default fdisk will make a partition as large as the total size of the disk
+#w: write the Partition Table to the disk
+m 
+n
+p
+1
+w
+
+# --------------------------------------------------------------------------------------------------
+# STEP-3C
+# Format the newly created Primary Partition
+# This makes the PP into a File System
+# -t == --type
+sudo mkfs -t ext4 /dev/sdc1
+
+# --------------------------------------------------------------------------------------------------
+# STEP-3D
+# Make a Mount Point on the File System
+sudo mkdir /data1
+
+# Find the BlockID/UUID for the new block device
+sudo -i blkid | grep sdc1 
+
+# replace the UUID value with the output from the previous command
+# this token will be used in the following commands
+UUID=[..]
+
+# 
+sudo vi /etc/fstab
+
+# --------------------------------------------------------------------------------------------------
+
+
+# --------------------------------------------------------------------------------------------------
