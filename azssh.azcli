@@ -1,0 +1,5 @@
+﻿# az ssh
+# https://learn.microsoft.com/en-us/cli/azure/ssh?view=azure-cli-latest#az_ssh_vm
+#
+# Azure CLI SSH Config
+# https://blog.nigelsim.org/2021-10-02-azure-cli-ssh-config/

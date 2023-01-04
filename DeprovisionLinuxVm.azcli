@@ -82,7 +82,7 @@ echo $rg
 
 # Find the IP address of the VM you want to build a custom image from.
 az vm list-ip-addresses --resource-group rg --name vmName
-ipAddresses = (az vm list-ip-addresses --resource-group rg --name vmName)
+ipAddresses=(az vm list-ip-addresses --resource-group rg --name vmName)
 
 # -----------------------------------------------------------------------
 # The follwoing sets of commands are run on the Linux VM as part of a
