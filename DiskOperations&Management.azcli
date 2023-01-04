@@ -4,7 +4,8 @@
 # STEP-1 Create/Provision
 # STEP-2 Attach the Disk to a VM in Azure !
 # STEP-3 Prepare the disk for the OS
-# STEP-4 Take a Snapshot of a VHD
+# STEP-4 [OPTIONAL] Resize a disk
+# STEP-5 Take a Snapshot of a VHD
 # Resize a VHD
 # Remove a VHD
 #------------------------------------------
@@ -139,14 +140,91 @@ sudo mkdir /data1
 # Find the BlockID/UUID for the new block device
 sudo -i blkid | grep sdc1 
 
-# replace the UUID value with the output from the previous command
-# this token will be used in the following commands
-UUID=[..]
+# Linux system's filesystem table
 
-# 
+# An introduction to the Linux /etc/fstab file
+# https://www.redhat.com/sysadmin/etc-fstab
+
+# fstab, is a plain text configuration file/table.
+# It is designed to ease the burden of mounting and unmounting file systems to a machine. 
+# It is a set of rules used to control how different filesystems are treated each time they are introduced to a system. 
+# It is designed to configure a rule where specific file systems are detected, then automatically mounted
+# in the user's desired order every time the system boots.
+# It requires root permission to write changes to it.
+
+# How to Write or Edit /etc/fstab
+# https://linuxhint.com/write-edit-etc-fstab/
+
+# -------------------------------------------
+# IMPORTANT!
+# Before making any changes to the fstab file, it’s recommended to make a backup first.
+# To edit the fstab file, launch your text editor of choice with sudo.
+# To write a comment in /etc/fstab use “#” at the start.
+# Changes to /etc/fstab won’t be effective unless the system restarts. However with sudo mount -a it should work also without restart.
+# -------------------------------------------
+# Each line of the file is dedicated to a unique device/partition.
+# It’s divided into six columns.
+# Column 1: Device name.                - Each device and partition gets its unique device name
+# Column 2: Default mount point.        - In Linux, a device, partition, or filesystem must be mounted on a location before the system can use it.
+# Column 3: Filesystem type.            - a filesystem is an index with the physical location of data on storage, Linux supports several filesystems
+# Column 4: Mount options.              - determine the mounting behavior of the device/partition.
+# Column 5: Dump options.               - It describes whether the filesystem is to be backed up.  
+# Column 6: Filesystem check options    - Fsck options. Determines in which order fsck will check the listed filesystems.
+
+# Notes
+# Column 1: Device name                         - the * lsblk * command to get a report on all the block devices i.e. lsblk -a
+# Column 2: Default mount point.                - the * mount * command to get a list of all the mounted partitions on the system i.e. mount -a
+# Column 3: Linux supported Filesystem types.   - ext4 xfs btrfs vfat ntfs tmpfs nfs squashfs sysf + “auto,” which lets the system auto-detect the filesystem type of the device or partition.
+# -------------------------------------------
+# Column 4: Mount options.
+#   auto/noauto: determines if the system will mount the filesystem during boot default: auto
+#
+#   user/nouser: describes which user can mount the filesystem. 
+#       user: (default) normal users can mount the filesystem 
+#       nouser: only the root can mount it - used for specific and critical filesystems
+#
+#   exec/noexec: describes whether binaries can be executed from the filesystem default: exec 
+#
+#   sync/async: determines how the input and output to the device/partition will be performed, 
+#               it affects how data is read and written.
+#
+#   ro: the partition is to be treated as read-only. Data on the filesystem can’t be changed.
+#   rw: It describes that the partition is available for reading and writing data.
+# -------------------------------------------
+# Column 5: Dump options.               - 0 (default): he dump will ignore the filesystem - better to use a 3rd party tool
+# Column 6: Filesystem check options    - 0 (default):?
+
+# replace the UUID value with the output from the command # sudo -i blkid | grep sdc1 
+# this token will be used to form a string to add to the text file /etc/fstab
+# mount the UUID to /data1 and file system ext4
+# use the defauls for Column 4: Mount options
+# use 0 for Column 5: Dump options 
+# use 0 for Column 6: Filesystem check options
+
+# form the string and copy it to teh clipboard
+UUID=[..]   /data1    ext4  defaults    0   0   
+
+# Edit a file with VI
+# https://www.howtogeek.com/102468/a-beginners-guide-to-editing-text-files-with-vi/
+# edit the file /etc/fstab
+# add the string you have foremd above and save the changes
 sudo vi /etc/fstab
+
+# mount the voulume 
+sudo mount -a
+# verify the filesystem is mounted
+# https://askubuntu.com/questions/425791/differences-between-df-df-h-and-df-l
+# the -h switch will cause the df command to print the size of the mounted drive in Human Readable formats
+df -h
 
 # --------------------------------------------------------------------------------------------------
 
+# STEP-3E
+# Exit the Linux VM
+exit
+
+# --------------------------------------------------------------------------------------------------
+
+# STEP-4 [OPTIONAL] Resize a disk
 
 # --------------------------------------------------------------------------------------------------
