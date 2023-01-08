@@ -1,10 +1,12 @@
 ﻿# Common Disk SAdministrative Operation
 # https://app.pluralsight.com/course-player?clipId=8bb89ee9-dbc2-4837-a770-6e49b1bcf694
 #------------------------------------------
-# STEP-1 Create/Provision
-# STEP-2 Attach the Disk to a VM in Azure !
-# STEP-3 Prepare the disk for the OS
-# STEP-4 [OPTIONAL] Resize a disk
+# STEP-1 Create/Provision an Azure managed disk
+# STEP-2 Attach the disk to an existing VM in Azure
+# STEP-3 Prepare the managed disk to be suitable to be used as Linux OS disk
+# STEP-4 [OPTIONAL] Resize the Azure managed disk from 25 GB to 100 GB
+# STEP-5 [OPTIONAL] Expand the OS partition to the disk additional attached Azure managed disk
+# STEP-6 [OPTIONAL] Expand the File System EXT4 already present on /dev/sdc1 the partition whole size
 # STEP-5 Take a Snapshot of a VHD
 # Resize a VHD
 # Remove a VHD
@@ -31,23 +33,27 @@ az login
 az account set --subscription "${SUB_NAME_PROFESSIONAL}"
 az account set --subscription "${SUB_NAME_ENTERPRISE}"
 # --------------------------------------------------------------------------------------------------
-# STEP-1 Create/Provision
-# STEP-2 Attach the Disk to a VM
+# STEP-1 Create/Provision an Azure managed disk
+# STEP-2 Attach the disk to an existing VM in Azure
 
 diskName="md-stdlrs-128-test1"
 
 # Create & Attach a managed persistent disk to a VM
 # [--sku {PremiumV2_LRS, Premium_LRS, Premium_ZRS, StandardSSD_LRS, StandardSSD_ZRS, Standard_LRS, UltraSSD_LRS}]
+# This will attach the disk to the VM. 
+# Notice that in the following command the disk is created with a small size of just 25 GB that is enough for any Linux
+# OS disk. However, in the following it is illustrated the process of RESIZING the disk and EXPANDING the OS partition 
+# into the newly provision disk space.
 az vm disk attach \
     --vm-name $vmName \
     --resource-group $rg \
     --name $diskName
     --new  \
-    --size-gb 128 \
+    --size-gb 25 \
     --sku Standard_LRS 
 
 # --------------------------------------------------------------------------------------------------
-# STEP-3 Prepare the disk for the OS
+# STEP-3 Prepare the managed disk to be suitable to be used as Linux OS disk
 
 # Find the IP address of the VM you want to build a custom image from.
 az vm list-ip-addresses --resource-group $rg --name $vmName
@@ -73,7 +79,8 @@ ssh -l demoadmin 168.61.212.180
 # This command comes pre-installed with the util-Linux package. 
 
 # The purpose of the following commands is at first to be able to discover the name
-# assigned to the block device that we want to attach to the te system.
+# assigned to the block device that we want to attach to the te system. This is the 
+# disk with the updated size of 100 GB.
 
 # --------
 lsblk
@@ -86,7 +93,9 @@ lsblk
 # lsblk -z 
 # --------
 
+# -----------------------------------------------------------------------
 # if * lsblk * is not installed on your Linux Distro.
+# -----------------------------------------------------------------------
 # Many Linux distributions do not have lsblk command pre-installed. 
 # install it use the following commands as per your Linux distribution. 
 # -----------------------------------------------------------------------
@@ -108,34 +117,98 @@ lsblk
 # Partition the disk with fdisk
 # https://phoenixnap.com/kb/linux-create-partition
 
-# In the following we assume that ** SDC ** is the name assigned to the block device that we want to 
-# attach to the te system.
+# In the following we assume that ** /dev/sdc ** is the name assigned to the block device that we want to 
+# attach and mount at boot time to the the system.
 sudo fdisk /dev/sdc
 
-# once you are in the FDisk utility the following commands produce the partition.
+# once you are in the FDisk utility the following commands produce the partition on the newly attached disk.
+# -------------------
 # m : fdisk help
+# -------------------
 # n : fdisk create a new partition - as this is a new drive that we want ot attach then we must first create a new partition
 # p : stands for Primary ( - e : stand for Extended Partition)
 # 1 : Partition Number - the default is 1 
-# By default fdisk will make a partition as large as the total size of the disk
-#w: write the Partition Table to the disk
+# ******
+# At this point the FDisk utility prompts for the START and END KB for the partition. The default of fdisk will make a 
+# partition as large as the total size of the disk on which it resides that is the /dev/sdc in our case of total size 100 GB.
+# ******
+# w: write the ** Partition Table ** to the disk
+# 
+# Partition Table Definition
+# http://www.linfo.org/partition_table.html#:~:text=A%20partition%20table%20is%20a,HDD%20into%20logically%20independent%20sections.
+#
+# A partition table is a 64-byte data structure that provides basic information for a computer's operating system about the division 
+# of the hard disk drive (HDD) into primary partitions. 
+# A partition is a division of a HDD into logically independent sections. 
+# Primary partitions are the first four partitions on a HDD.
+# The partition table is part of the master boot record (MBR), which is a small program that is executed when a computer boots
+# in order to find the operating system and load it into memory. 
+# The MBR also contains other information needed by the BIOS (basic input output system) in order to access the HDD 
+# (on which the operating system is usually located).
+# -------------------
 m 
+# -------------------
+n
+p
+1
+w
+
+# The following repeats the step without comments and only with the essential inputs for convenience.
+sudo fdisk /dev/sdc
 n
 p
 1
 w
 
 # --------------------------------------------------------------------------------------------------
+
 # STEP-3C
-# Format the newly created Primary Partition
-# This makes the PP into a File System
+
+# Format the newly created Primary Partition on the disk /dev/sdc.
+# The format of a partition should be in accordance to its purpose and as we plan to use this partition 
+# to EXTEND the OS partition of the VM into it in the following command we format the Primary Partition 
+# number 1 on the disk /dev/sdc with the ext4 format that is suitable for the Linux OS File System.
 # -t == --type
 sudo mkfs -t ext4 /dev/sdc1
 
+# In a later step you will learn that there exist a number of file systems that may be used to arganize 
+# the data on a partition. 
+
+# What’s the Difference Between Linux EXT, XFS, and BTRFS Filesystems?
+# https://www.electronicdesign.com/industrial-automation/article/21804944/whats-the-difference-between-linux-ext-xfs-and-btrfs-filesystems
+# Linux supports a range of file systems, including ones used on other operating 
+# systems such as Windows FAT and NTFS. Those may be supported by embedded developers but normally a Linux 
+# file system like the 4 extended file system (ext4), XFS, or BTRFS will be used for most storage partitions.
+# --------------------------------------------------------------
+# xt4 xfs btrfs vfat ntfs tmpfs nfs squashfs sysf + “auto,”
+# --------------------------------------------------------------
+
 # --------------------------------------------------------------------------------------------------
 # STEP-3D
-# Make a Mount Point on the File System
+# At this point we need this new partition to be mounted at boot time hence in order to do so we need
+# the following
+#
+# 1- 
+# to make a Mount Point on the File System in other words a file/direcotry that in the following 
+# we label /data1, this is the name given to this mount point.
+# 
+# 2-
+# we need a way to instruct the the BIOS to mount the partition that holds the OS at boot time.
+# In order to do so on Linux machine there is a special file named ** /etc/fstab ** that lists the 
+# disks and partitions and some of their characteristics that we wish to be mounted automatically at 
+# boot time. All that wee need to do in order to control which devices/partition are loaded automatically
+# at boot time is to edit this file.
+
+# -------------------------------------------------------------------------------------------
+
+#1-
+# create the mount point for the new Primary Parttion /dev/sdc1 and name it /data1
 sudo mkdir /data1
+
+# -------------------------------------------------------------------------------------------
+
+#2-
+# add the entry to teh file ** /etc/fstab ** to have this partition mounted at boot time.
 
 # Find the BlockID/UUID for the new block device
 sudo -i blkid | grep sdc1 
@@ -196,7 +269,9 @@ sudo -i blkid | grep sdc1
 
 # replace the UUID value with the output from the command # sudo -i blkid | grep sdc1 
 # this token will be used to form a string to add to the text file /etc/fstab
-# mount the UUID to /data1 and file system ext4
+# mount the UUID to the mount point /data1 
+# this mount point was created erlier on the newly attached disk dev/sdc and its Primary Partition 1
+# this Primary Partiion Number 1 on dev/sdc that is dev/sdc1 has been formatted with a file system of type ext4
 # use the defauls for Column 4: Mount options
 # use 0 for Column 5: Dump options 
 # use 0 for Column 6: Filesystem check options
@@ -204,18 +279,35 @@ sudo -i blkid | grep sdc1
 # form the string and copy it to teh clipboard
 UUID=[..]   /data1    ext4  defaults    0   0   
 
+# --------------------------------------------------------------------------------------
 # Edit a file with VI
+# A Beginner’s Guide to Editing Text Files With Vi
 # https://www.howtogeek.com/102468/a-beginners-guide-to-editing-text-files-with-vi/
 # edit the file /etc/fstab
 # add the string you have foremd above and save the changes
-sudo vi /etc/fstab
 
-# mount the voulume 
+sudo vi /etc/fstab
+# --------------------------------------------------------------------------------------
+
+# mount the voulume - this is a HOT operation!
 sudo mount -a
-# verify the filesystem is mounted
+
+# --------------------------------------------------------------------------------------
+# Df Command in Linux (Check Disk Space)
+# https://linuxize.com/post/how-to-check-disk-space-in-linux-using-the-df-command/
+# 
+# On Linux and Unix operating systems, you can use the df command to get a detailed report 
+# on the system’s disk space usage.
+
+# The DF Command can also be used to verify whether a disk and the filesystem is mounted.
 # https://askubuntu.com/questions/425791/differences-between-df-df-h-and-df-l
-# the -h switch will cause the df command to print the size of the mounted drive in Human Readable formats
+# the -h switch will cause the df command to print the size of the mounted drive in 
+# Human Readable formats
 df -h
+
+# In our case we expect to see the /dev/sdc1 partition mounted at /data1 in the output.
+# We should also see that this partition has an available size of 25 GB that is the 
+# size of the Azure Managed disk on which it resides.
 
 # --------------------------------------------------------------------------------------------------
 
@@ -224,7 +316,214 @@ df -h
 exit
 
 # --------------------------------------------------------------------------------------------------
+# STEP-4 [OPTIONAL] Resize the Azure managed disk from 25 GB to 100 GB
 
-# STEP-4 [OPTIONAL] Resize a disk
+# STEP-4-A
+# !IMPORTANT!
+# In order to resize a disk you ** MUST ** first STOP nad DEALLOCATE the VM in Azure.
+
+# Contrary to [STEP-3 Prepare the disk for the OS]
+# this STEP-4 requires the VM to be completely offline.
+# The following will cause the VM to STOP, SHUTDOWN & DEALLOCATE the VM in Azure
+az vm deallocate \
+    --resource-group $rg \         
+    --name  $vmname \
+
+# display the list of available disks in Azure so that we can pick the one we want to RESIZE    
+az disk list \
+    --resource-group $rg \
+    --output table
+
+# Once we have the name of the disk to resize it is possible to do just that.    
+az disk update \
+    --resource-group $rg \         
+    --name  $diskName \
+    --size-gb 100
+
+# restart the VM   
+# this will also cause the resized Azure Managed disk to be automatically attached to the VM
+# and its primary partition 1 mounted to /data1 on boot. 
+az vm start \
+    --resource-group $rg \
+    --name  $vmname
+
+# --------------------------------------------------------------------------------------------------
+# SSH
+
+# It is time to remote into the Linux VM over a new SSH session.
+# If the Azure VM is also provided with a public IP address then it would be unnecessary to run the 
+# following code in order to find its DHCP provided IP else the code below is a way of finding it out.  
+
+# Find the IP address of the VM you want to build a custom image from.
+
+az vm list-ip-addresses --resource-group rg --name vmName
+ipAddresses=(az vm list-ip-addresses --resource-group rg --name vmName)
+# remote into the VM with ssh this will satrt a ssh session on the bash shell
+ssh demoadmin@x.y.z
+ssh demoadmin@168.61.212.180
+
+# you may also use the following
+ss -l demoadmin x.y.z
+
+# --------------------------------------------------------------------------------------------------
+
+# STEP-5 [OPTIONAL] Expand the OS partition to the disk additional attached Azure managed disk
+# STEP-6 [OPTIONAL] Expand the File System EXT4 already present on /dev/sdc1 the partition whole size
+
+# --------------------------------------------------------------------------------------------------
+
+# The disk that was attached to the VM has been resized from 25 GB to 100 GB.
+# It is now possible to expand the partition of the OS into it.
+# Later it will be possible to also expand the OS File System into the additional partition space.
+
+# In order to expand the OS partition into the disk mounted at the mount point /data1 which
+# represent the Primary Partition Number 1 on the newly resized 100 GB Azure managed disk this must
+# firt be unmounted as this operation# cannot be accomplished as a HOT operation.  
+
+# This is again done by editing the /etc/fstab file with the VI text editing utility available on most Linux OSes.
+# Find the line for the partition that holds the partition at mount point /data1. 
+# The comment out the line in the file by prepending it with #
+sudo vi /etc/fstab
+
+# -------------------------------------------------------
+# the following unmounts the drive/partition /data1
+sudo umount /data1
+# -------------------------------------------------------
+
+# Creating and managing partitions in Linux with parted
+# https://www.redhat.com/sysadmin/partitions-parted
+
+# The * parted * command allows to perform the expansion of a drive and other administrative tasks on disks.
+# The * fdsik * utility may be used also but PARTED is perhaps simpler nad more user-friendly to use.
+
+# How to use parted on Linux
+# https://linuxhint.com/parted_linux/
+# Parted is a command line tool for managing disk partitions on Linux. 
+# It can be used to work with both MSDOS and GPT partition tables. 
+# In order to use parted correctly, knowledge on the physical structure of the disk such as the block size of the disk IS REQUIRED. 
+# ------------------------------
+# If * parted * is not yet installed then you must install it first
+# Ubuntu
+# update the apt cache first and thne install the package 
+sudo apt update
+sudo apt install parted 
+# ------------------------------
+# CentOS/RHEL 7
+sudo yum install parted -y
+# ------------------------------
+
+# in this case you already know that /dev/sdc is the partition that you wish to use the * parted *
+# utility on. However, if you are not sure which partition you are going to have to expand then
+# one way is to use the following command. Its output will be the list of HDs that are attached to 
+# your VM
+sudo lshw -class disk -short
+
+
+# Now that you have istalled the PARTED program you may use it to EXPAND the partition of the Linux OS 
+# into the Primary Partition Number 1 of the newly resized Azure Managed disk /dev/sdc.
+# In order to do so we use the PARTED utility on the disk that holds the partition we want to expand into!
+sudo parted /dev/sdc
+
+# ----------------------------------
+# ANOTHER WAY YOU MAU USE PARTED
+# ----------------------------------
+
+# You can also start parted without specifying which storage device to open with parted beforehand.
+# By default, /dev/sda, the first/primary storage device is selected.
+sudo parted
+
+# once you are in * parted * you can list all the storage devices on your computer with the following 
+# parted command which also returns the physical size of the disks.
+print devices
+
+# you may now select the disk you wish to use * parted * with the SELECT command of the utility * parted *
+select /dev/sdc
+
+# -------------------
+
+# the following are a number of useful commands of the utility * parted *
+# ---
+# the * print * command will print the partitions available on the currently selected disk i.e. /dev/sdc
+# It outputs the details of the disk and its partitions.
+# For example if the VM has a VHD attaced disk of a total size of 100 GB as you have done in the previos
+# steps and the origianl OS partition was just 25 GB then the * print * command output will show a sigle 
+# partition of 25 GB su as 
+# ------------------
+# Disk: /dev/sdc: 100 GB
+# ..OTHER DISK DETAILS..
+# -----------------------------------------------------------------------------------------------
+# ..PARTITIONS DETAILS ON THIS DISK..
+# Partition Number | Start KB | End KB | Size of Partition | Type of P. | File System Type of P.
+# -----------------------------------------------------------------------------------------------
+print
+
+# ---
+# The PARTED command that we are concerned with in this exercise is the RESIZEPART.
+
+# the * resizepart * command makes it possible to resize a disk partition.
+# resizepart | Partition Number | Size To GB |
+# The effect of this command will be that the Primary Partition 1 on the disk /dev/sdc
+# that is /sdc/dev1 will be EXPANDED from its current size ion disk that is 25 GB to the 
+# the size of the whole available disk /dev/sdc on which it resides that in our case is 100 GB.
+resizepart
+1
+100GB
+
+# WARNING!
+# it may be necessary to update the GNU package for the PARTED utility inb your distribution
+# as some older distribution may still be shipped with a PARTED version where the RESIZEPART
+# has not yet been made available.
+
+# ---
+
+# ---
+# QUIT the * parted * utility and return to the SSH shell
+quit
+# ---
+
+# --------------------------------------------------------------------------------------------------
+# We are now back to the SSH session after leaving the PARTED utility and have resized the PP N 1
+# /dev/sdc1 from 25 GB to the whole 100 GB available on its Azure Managed disk.
+# The 100 GB disk is the VHD disk /dev/sdc that has been attached to the VM.
+
+# After resizing a disk partitionwith a EXT4 file system it is advisabke to check that it is still
+# error-free. 
+
+# e2fsck is used to check the ext2/ext3/ext4 family of file systems and possible to correct errors.
+# https://man7.org/linux/man-pages/man8/e2fsck.8.html
+
+# Example: Using Fsck to Check and Repair a Filesystem
+# https://www.juniper.net/documentation/en_US/bti-series/psm7.8/topics/task/operational/t-sm-ig-using-fsck.html
+
+# How to use fsck to repair file system errors in Linux Ubuntu
+# https://www.youtube.com/watch?v=wlyLvV118IY
+
+# What are e2fsck and fsck and how do I use them?
+# https://askubuntu.com/questions/182231/what-are-e2fsck-and-fsck-and-how-do-i-use-them
+
+sudo e2fsck -f /dev/sdc1
+
+# if file system errors are detected the output of the fsck utility will show them and the utility fsck
+# can also be used to tru to correct them in some cases. The -y flag = yes and
+sudo fsck -y /dev/sdc1
+
+# --------------------------------------------------------------------------------------------------
+
+# The following is the implementation of the step
+# STEP-6 [OPTIONAL] Expand the File System EXT4 already present on /dev/sdc1 the partition whole size
+sudo resize2fs /dev/sdc1
+
+# --------------------------------------------------------------------------------------------------
+
+# The following 3 operatuions have already been performed a few times and should already be familiar.
+# 1- mount a partition to a mount point
+# 2- add an entry to the mount table to mount /data1 automatically at boot time (should nly uncomment a line)
+# 3- mount all partitions from the mount table   
+sudo mount /dev/sdc1 /data1
+sudo vi /etc/fstab
+sudo mount -a
+
+# 4 verify that the added space is actually available
+df -h | grep data1
 
 # --------------------------------------------------------------------------------------------------
