@@ -7,9 +7,9 @@
 # STEP-4 [OPTIONAL] Resize the Azure managed disk from 25 GB to 100 GB
 # STEP-5 [OPTIONAL] Expand the OS partition to the disk additional attached Azure managed disk
 # STEP-6 [OPTIONAL] Expand the File System EXT4 already present on /dev/sdc1 the partition whole size
-# STEP-5 Take a Snapshot of a VHD
-# Resize a VHD
-# Remove a VHD
+# STEP-7 Take a Snapshot of a VHD
+# STEP-8 Create a new VHD from a Snapshot
+# STEP-9 Create a new VM and attach the VHD created from from a Snapshot
 #------------------------------------------
 # Azure Disk Snapshots
 # https://app.pluralsight.com/course-player?clipId=7fc2e10c-c929-44fd-b757-e6aaad17d833
@@ -363,7 +363,7 @@ ssh demoadmin@x.y.z
 ssh demoadmin@168.61.212.180
 
 # you may also use the following
-ss -l demoadmin x.y.z
+ssh -l demoadmin x.y.z
 
 # --------------------------------------------------------------------------------------------------
 
@@ -527,3 +527,109 @@ sudo mount -a
 df -h | grep data1
 
 # --------------------------------------------------------------------------------------------------
+
+# -----------------------------
+
+# Removing & Detaching a VHD
+# https://app.pluralsight.com/course-player?clipId=7e51a83f-6ecc-4179-8d46-1ab56c0eab3e
+
+# How to detach a data disk from a Linux virtual machine
+# https://learn.microsoft.com/en-us/azure/virtual-machines/linux/detach-disk
+
+# How to detach a data disk from a Windows virtual machine
+# https://learn.microsoft.com/en-us/azure/virtual-machines/windows/detach-disk
+
+# -----------------------------
+
+
+# open a ssh session to the public IP address of the VM.
+# if the VM does have a static public IP address then it is known otherwise the preceding
+# steps illustrate a way to obtain the public DHCP assigned aasigned IP address.
+ssh -l demoadmin x.y.z 
+
+# edit /etc/fstab with the VI utility
+# the entry to boot load the partition that is on the disk that we want to remove must be removed
+# also from this file to prevent the OS from attempting to load it the next time it reboots
+sudo vi /etc/fstab
+
+# now it is time to unmount the partition to wich in the previous steps the mount point 
+# /data1 was given
+sudo unmount /data1
+
+# to verify that the disk and the partitions are no longer mounted use the DF utility 
+df -h | grep /data1
+
+# with EXIT the SSH session is closed
+exit
+
+# --------------------------------------------------------------------------------------------------
+
+# With the CLI the following illustrate how to detach and delete a disk
+# IMPORTANT!
+# The disk stays in storage but is no longer attached to a virtual machine!
+# This can be perform as a HOT operation
+# It is possible to perform the same operation from the Azure Portal
+az vm disk detach \
+    -g myResourceGroup \
+	--vm-name myVm \
+	-n myDataDisk
+
+# It is now possible to delete the disk
+# This will remove the Azure Manage Disk resource from the subscription
+az disk delete --name MyManagedDisk --resource-group MyResourceGroup
+
+# --------------------------------------------------------------------------------------------------
+
+# STEP-7 Take a Snapshot of a VHD
+# Taking a Snapshot of a VM Disk
+# https://app.pluralsight.com/course-player?clipId=f35a5408-d134-4b55-b646-f066997fdc85
+
+# Create a snapshot of a virtual hard disk
+# https://learn.microsoft.com/en-us/azure/virtual-machines/snapshot-copy-managed-disk?tabs=portal
+
+# Create an incremental snapshot for managed disks
+# https://learn.microsoft.com/en-us/azure/virtual-machines/disks-incremental-snapshots?tabs=azure-cli
+
+# https://learn.microsoft.com/en-us/cli/azure/snapshot?view=azure-cli-latest
+
+# if you need to find the exact name of the disk of which you wantr to take a Snapshot
+az disk list --output table | grep "md-some-token"
+
+# Create a snapshot by importing from a blob uri.
+az snapshot create \
+    -g rg \
+    -n snapshot-xxx \
+    --source diskNameToSnapshot
+
+# Get a list of available disk snaphots 
+az snapshot list --resource-group rg --debug table
+
+# --------------------------------------------------------------------------------------------------
+# STEP-8 Create a new VHD from a Snapshot
+
+az disk create \
+    --name diskName \
+    --resource-group rg \
+    --source snapshot-xxx \
+    --size-gb "40"
+
+# --------------------------------------------------------------------------------------------------
+
+# STEP-9 Create a new VM and attach the VHD created from from a Snapshot
+
+#If the Snapshot is a from a Data disk then the new disk may simply be attached to an EXISTING VM
+#If the Snapshot is a from a OS disk then the new disk may be used on creating a new VM [--attach-data-disks]
+az vm create \
+    --name vmName \
+    --resource-group  rg \
+    --attach-os-disk diskName \
+    --os-type linux
+
+# --------------------------------------------------------------------------------------------------
+
+# if the snapshot of the disk is no longer required it may be deleted.
+az snapshot delete \
+    -g rg \
+    -n snapshot-xxx \   
+
+# --------------------------------------------------------------------------------------------------    
